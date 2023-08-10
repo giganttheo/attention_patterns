@@ -139,35 +139,66 @@ class AttentionPattern():
     ax.tick_params(which='minor', bottom=False, left=False)
 
   def get_attention_graph(self):
-    return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask, "embeddings": self.embeddings}
-  
+    return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
+
 
 class VanillaAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len, n_heads=4, n_layers=3, batch_size = 2):
+  def __init__(self, seq_len_k, seq_len_qv, causal=False, n_heads=4, n_layers=3, batch_size = 2):
     super().__init__()
     self.batch_size = batch_size
-    self.receivers = {}
-    self.senders = {}
-    self.graph_mask = {}
-    for layer in range(n_layers):
-      receivers = []
-      senders = []
-      for head in range(n_heads):
-        layer_receivers = []
-        layer_senders = []
-        for i in range(seq_len):
-          for j in range(seq_len):
+    # self.receivers = {}
+    # self.senders = {}
+    # self.graph_mask = {}
+    receivers = []
+    senders = []
+    for head in range(n_heads):
+      layer_receivers = []
+      layer_senders = []
+      if not causal:
+        for i in range(seq_len_qv):
+          for j in range(seq_len_k):
             layer_receivers.append(i)
             layer_senders.append(j)
-        receivers.append(layer_receivers)
-        senders.append(layer_senders)
-      receivers, senders = self._cleaning_duplicates(receivers, senders)
-      receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
-      receivers = jnp.array([receivers]*batch_size)
-      senders = jnp.array([senders]*batch_size)
-      graph_mask = jnp.array([graph_mask]*batch_size)
-      self.receivers[f"layer_{layer}"] = receivers
-      self.senders[f"layer_{layer}"] = senders
-      self.graph_mask[f"layer_{layer}"] = graph_mask
+      else:
+        for i in range(1, 2 + seq_len_qv):
+          for j in range(seq_len_k):
+            layer_receivers.append(i)
+            layer_senders.append(j)
+      receivers.append(layer_receivers)
+      senders.append(layer_senders)
+    receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
+    receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
+    receivers = jnp.array([receivers]*batch_size)
+    senders = jnp.array([senders]*batch_size)
+    graph_mask = jnp.array([graph_mask]*batch_size)
+    self.receivers = receivers
+    self.senders = senders
+    self.graph_mask = graph_mask
     self.n_heads = n_heads
-    self.size = (seq_len, seq_len)
+    self.size = (seq_len_qv, seq_len_k)
+
+
+n_heads = 12
+
+def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
+  if not isinstance(tree, dict):
+    return None
+  if 'SelfAttention' in path:
+    #self attention
+    if 'encoder' in path:
+      return enc_self_attn
+    else: #decoder attn
+      return dec_self_attn
+  elif 'EncDecAttention' in path:
+    #encoder / decoder cross attention
+    return encdec_attn
+  return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
+
+def create_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attn_type=VanillaAttentionPattern):
+
+    enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
+    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
+
+    graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
+    return graph
