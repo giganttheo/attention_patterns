@@ -8,5 +8,5 @@ setup(name='attnptrns',
       author='Théo Gigant',
       author_email='theo.gigant@l2s.centralesupelec.fr',
       url='https://github.com/giganttheo/attention_patterns',
-      packages=['attnptrns'],
+      packages=['scr'],
      )
