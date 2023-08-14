@@ -6,17 +6,23 @@ except BaseException:
 	from distutils.core import setup
 
 # from setuptools import setup, find_packages
-from attnptrns import __version__
+# from attnptrns import __version__
 
 setup(name='attnptrns',
-      version=__version__,
+      version="0.0.1", #__version__,
       description='Attention patterns',
       author='Théo Gigant',
       author_email='theo.gigant@l2s.centralesupelec.fr',
       url='https://github.com/giganttheo/attention_patterns',
       packages=['attnptrns'],
-      package_data={'attnptrns': ['py.typed']},
       install_requires=[
-		'jax',
+		'numpy',
 	],
+    classifiers=[
+        'Development Status :: 1 - Planning',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: BSD License',  
+        'Operating System :: POSIX :: Linux',        
+        'Programming Language :: Python :: 3.9',
+    ],
      )

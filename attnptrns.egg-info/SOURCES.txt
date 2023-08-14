@@ -1,0 +1,17 @@
+README.md
+setup.py
+attnptrns/__init__.py
+attnptrns/base_attn_pattern.py
+attnptrns/bigbird_attn.py
+attnptrns/block_local_attn.py
+attnptrns/longformer_attn.py
+attnptrns/longnet_attn.py
+attnptrns/lsg_attn.py
+attnptrns/treemap_vanilla_attn.py
+attnptrns/vanilla_attn.py
+attnptrns/window_local_attn.py
+attnptrns.egg-info/PKG-INFO
+attnptrns.egg-info/SOURCES.txt
+attnptrns.egg-info/dependency_links.txt
+attnptrns.egg-info/requires.txt
+attnptrns.egg-info/top_level.txt
