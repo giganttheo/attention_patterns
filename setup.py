@@ -15,4 +15,7 @@ setup(name='attnptrns',
       author_email='theo.gigant@l2s.centralesupelec.fr',
       url='https://github.com/giganttheo/attention_patterns',
       packages=['attnptrns'],
+    install_requires=[
+		'jax',
+	],
      )
