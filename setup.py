@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup, find_packages
+from src import __version__
 
 setup(name='attnptrns',
-      version='1.0',
+      version=__version__,
       description='Attention patterns',
       author='Théo Gigant',
       author_email='theo.gigant@l2s.centralesupelec.fr',
       url='https://github.com/giganttheo/attention_patterns',
-      packages=['scr'],
+      packages=find_packages(),
      )

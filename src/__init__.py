@@ -1,1 +1,3 @@
-from treemap_vanilla_attn import create_attn_patterns
+from treemap_vanilla_attn import 
+
+__version__ = 'dev'
