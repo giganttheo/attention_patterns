@@ -142,25 +142,25 @@ class AttentionPattern():
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
 
 
-class VanillaAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, causal=False, n_heads=4, batch_size = 2):
+
+class DilatedWindowSelfAttentionPattern(AttentionPattern):
+  def __init__(self, seq_len_k, seq_len_qv, window_size, dilation=None, n_heads=1, batch_size=1, causal=False):
     super().__init__()
-    self.batch_size = batch_size
+    if dilation is None:
+      dilation = range(1, 1 + n_heads)
+    elif not dilation:
+      #no dilation
+      dilation = [1]*n_heads
+    
     receivers = []
     senders = []
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
-      if not causal:
-        for i in range(seq_len_qv):
-          for j in range(seq_len_k):
-            layer_receivers.append(i)
-            layer_senders.append(j)
-      else:
-        for i in range(1, 2 + seq_len_qv):
-          for j in range(seq_len_k):
-            layer_receivers.append(i)
-            layer_senders.append(j)
+      for i in range(0, seq_len_qv):
+        for j in [i + offset * dilation[head] for offset in range(- (window_size // 2), (window_size % 2) + window_size // 2) if seq_len_k >= i + offset * dilation[head] >= 0]:
+          layer_senders.append(i)
+          layer_receivers.append(j)
       receivers.append(layer_receivers)
       senders.append(layer_senders)
     receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
@@ -173,7 +173,6 @@ class VanillaAttentionPattern(AttentionPattern):
     self.graph_mask = graph_mask
     self.n_heads = n_heads
     self.size = (seq_len_qv, seq_len_k)
-
 
 n_heads = 12
 
@@ -191,7 +190,7 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
     return encdec_attn
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
-def create_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attn_type=VanillaAttentionPattern):
+def create_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attn_type=DilatedWindowSelfAttentionPattern):
 
     enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
     dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
