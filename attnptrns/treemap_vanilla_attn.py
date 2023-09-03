@@ -157,8 +157,9 @@ class VanillaAttentionPattern(AttentionPattern):
             layer_receivers.append(i)
             layer_senders.append(j)
       else:
-        for i in range(1, 2 + seq_len_qv):
-          for j in range(seq_len_k):
+        # for i in range(1, 2 + seq_len_qv):
+        for j in range(seq_len_k):
+          for i in range(j, seq_len_qv):
             layer_receivers.append(i)
             layer_senders.append(j)
       receivers.append(layer_receivers)
