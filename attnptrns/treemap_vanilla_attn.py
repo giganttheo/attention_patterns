@@ -28,7 +28,7 @@ class AttentionPattern():
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or (j >= i):# (i >= j): #with the causal mask, we ignore edges where the receiver is before the sender
+          if not causal or (i > j): #with the causal mask, we ignore edges where the receiver is before the sender
             edges.add((i, j))
             clean_r.append(i)
             clean_s.append(j)
