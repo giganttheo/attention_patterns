@@ -28,7 +28,7 @@ class AttentionPattern():
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or (i >= j): #with the causal mask, we ignore edges where the receiver is before the sender
+          if not causal or (j >= i):# (i >= j): #with the causal mask, we ignore edges where the receiver is before the sender
             edges.add((i, j))
             clean_r.append(i)
             clean_s.append(j)
@@ -42,6 +42,7 @@ class AttentionPattern():
     return clean_receivers_heads, clean_senders_heads
 
   def _padding_graphs(self, receivers_heads, senders_heads):
+    #TODO receivers or senders?
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
@@ -158,8 +159,8 @@ class VanillaAttentionPattern(AttentionPattern):
             layer_senders.append(j)
       else:
         # for i in range(1, 2 + seq_len_qv):
-        for j in range(seq_len_k):
-          for i in range(j, seq_len_qv):
+        for i in range(seq_len_qv):
+          for j in range(seq_len_k):
             layer_receivers.append(i)
             layer_senders.append(j)
       receivers.append(layer_receivers)
