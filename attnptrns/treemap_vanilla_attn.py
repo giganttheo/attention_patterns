@@ -58,13 +58,12 @@ class AttentionPattern():
     m_h = []
     for receivers in receivers_heads:
       h.append(pad_to(receivers, max_graph_len))
-      m_h.append(get_mask(receivers, max_graph_len))
     r = h
-    m = m_h
     h = []
     for senders in senders_heads:
       h.append(pad_to(senders, max_graph_len))
-    s = h
+      m_h.append(get_mask(receivers, max_graph_len))
+    m = m_h
     return jnp.array(r), jnp.array(s), jnp.array(m)
 
   def mask(self, mask):
