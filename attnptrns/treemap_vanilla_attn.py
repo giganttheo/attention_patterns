@@ -28,7 +28,8 @@ class AttentionPattern():
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or (i > j): #with the causal mask, we ignore edges where the receiver is before the sender
+          if not causal or (i > j):
+            #with the causal mask, we ignore edges where the receiver is before the sender
             edges.add((i, j))
             clean_r.append(i)
             clean_s.append(j)
@@ -144,7 +145,7 @@ class AttentionPattern():
 
 
 class VanillaAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, causal=False, n_heads=4, batch_size = 2):
+  def __init__(self, seq_len_k, seq_len_qv, attention_mask=None, causal=False, n_heads=4, batch_size = 2):
     super().__init__()
     self.batch_size = batch_size
     receivers = []
@@ -155,14 +156,16 @@ class VanillaAttentionPattern(AttentionPattern):
       if not causal:
         for i in range(seq_len_qv):
           for j in range(seq_len_k):
-            layer_receivers.append(i)
-            layer_senders.append(j)
+            if attention_mask is None or (attention_mask[..., i] and attention_mask[..., j]):
+              layer_receivers.append(i)
+              layer_senders.append(j)
       else:
         # for i in range(1, 2 + seq_len_qv):
         for i in range(seq_len_qv):
           for j in range(seq_len_k):
-            layer_receivers.append(i)
-            layer_senders.append(j)
+            if attention_mask is None or (attention_mask[..., i] and attention_mask[..., j]):
+              layer_receivers.append(i)
+              layer_senders.append(j)
       receivers.append(layer_receivers)
       senders.append(layer_senders)
     receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
