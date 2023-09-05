@@ -156,14 +156,14 @@ class VanillaAttentionPattern(AttentionPattern):
       if not causal:
         for i in range(seq_len_qv):
           for j in range(seq_len_k):
-            if attention_mask is None or (attention_mask[..., i] and attention_mask[..., j]):
+            if attention_mask is None or (attention_mask[0, i] and attention_mask[0, j]):
               layer_receivers.append(i)
               layer_senders.append(j)
       else:
         # for i in range(1, 2 + seq_len_qv):
         for i in range(seq_len_qv):
           for j in range(seq_len_k):
-            if attention_mask is None or (attention_mask[..., i] and attention_mask[..., j]):
+            if attention_mask is None or (attention_mask[0, i] and attention_mask[0, j]):
               layer_receivers.append(i)
               layer_senders.append(j)
       receivers.append(layer_receivers)
