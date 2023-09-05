@@ -154,7 +154,7 @@ class VanillaAttentionPattern(AttentionPattern):
       seq_qv = range(seq_len_qv)
       seq_k = range(seq_len_k)
     else:
-      seq_qv = [i for i in range(seq_len_qv) if attention_mask[0, i]]
+      seq_qv = range(seq_len_qv)#[i for i in range(seq_len_qv) if attention_mask[0, i]]
       seq_k = [j for j in range(seq_len_k) if attention_mask[0, j]]
     for head in range(n_heads):
       layer_receivers = []
