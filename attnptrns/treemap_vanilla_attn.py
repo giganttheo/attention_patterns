@@ -42,7 +42,7 @@ class AttentionPattern():
       clean_senders_heads.append(jnp.array(clean_s))
     return clean_receivers_heads, clean_senders_heads
 
-  def _padding_graphs(self, receivers_heads, senders_heads):
+  def _padding_graphs(self, receivers_heads, senders_heads, attention_mask=None):
     #TODO receivers or senders?
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
@@ -50,9 +50,9 @@ class AttentionPattern():
       padded_mat = jnp.zeros((padding), dtype=jnp.int16)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
-    def get_mask(mat, padding):
+    def get_mask(mat, padding, attention_mask):
       graph_mask = jnp.zeros((padding), dtype=jnp.int8)
-      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
+      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat) and attention_mask)
       return graph_mask
     h = []
     m_h = []
@@ -62,7 +62,7 @@ class AttentionPattern():
     h = []
     for senders in senders_heads:
       h.append(pad_to(senders, max_graph_len))
-      m_h.append(get_mask(senders, max_graph_len))
+      m_h.append(get_mask(senders, max_graph_len, attention_mask[senders]))
     m = m_h
     s = h
     return jnp.array(r), jnp.array(s), jnp.array(m)
@@ -154,8 +154,9 @@ class VanillaAttentionPattern(AttentionPattern):
       seq_qv = range(seq_len_qv)
       seq_k = range(seq_len_k)
     else:
-      seq_qv = range(seq_len_qv)#[i for i in range(seq_len_qv) if attention_mask[0, i]]
-      seq_k = [j for j in range(seq_len_k) if attention_mask[0, j]]
+      seq_qv = range(seq_len_qv)
+      seq_k = range(seq_len_k)
+      # seq_k = [j for j in range(seq_len_k) if attention_mask[0, j]] #this is more logical this way
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
@@ -173,7 +174,7 @@ class VanillaAttentionPattern(AttentionPattern):
       receivers.append(layer_receivers)
       senders.append(layer_senders)
     receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
-    receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
+    receivers, senders, graph_mask = self._padding_graphs(receivers, senders, attention_mask=attention_mask)
     receivers = jnp.array([receivers]*batch_size)
     senders = jnp.array([senders]*batch_size)
     graph_mask = jnp.array([graph_mask]*batch_size)
