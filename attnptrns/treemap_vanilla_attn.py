@@ -150,22 +150,26 @@ class VanillaAttentionPattern(AttentionPattern):
     self.batch_size = batch_size
     receivers = []
     senders = []
+    if attention_mask is None:
+      seq_qv = range(seq_len_qv)
+      seq_k = range(seq_len_k)
+    else:
+      seq_qv = [i for i in range(seq_len_qv) if attention_mask[0, i]]
+      seq_k = [j for j in range(seq_len_k) if attention_mask[0, j]]
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
       if not causal:
-        for i in range(seq_len_qv):
-          for j in range(seq_len_k):
-            if attention_mask is None or (attention_mask[0, i] and attention_mask[0, j]):
-              layer_receivers.append(i)
-              layer_senders.append(j)
+        for i in seq_qv:
+          for j in seq_k:
+            layer_receivers.append(i)
+            layer_senders.append(j)
       else:
         # for i in range(1, 2 + seq_len_qv):
-        for i in range(seq_len_qv):
-          for j in range(seq_len_k):
-            if attention_mask is None or (attention_mask[0, i] and attention_mask[0, j]):
-              layer_receivers.append(i)
-              layer_senders.append(j)
+        for i in seq_qv:
+          for j in seq_k:
+            layer_receivers.append(i)
+            layer_senders.append(j)
       receivers.append(layer_receivers)
       senders.append(layer_senders)
     receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
