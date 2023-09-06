@@ -190,11 +190,10 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
     return encdec_attn
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
-def create_window_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, window_size_enc, window_size_dec, window_size_encdec, attn_type=DilatedWindowSelfAttentionPattern):
+def create_window_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, window_size_enc, window_size_dec, window_size_encdec, attn_type=DilatedWindowSelfAttentionPattern):
 
     enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, window_size=window_size_enc, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
-    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, window_size=window_size_dec, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, window_size=window_size_dec, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
     encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, window_size=window_size_encdec, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
-
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
