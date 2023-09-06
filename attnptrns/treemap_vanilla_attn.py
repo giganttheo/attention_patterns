@@ -207,7 +207,8 @@ def create_dense_attn_patterns(model, max_source_length, max_target_length, n_he
 
     enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
     dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
-    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
+    #this is cross attn
+    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
 
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
