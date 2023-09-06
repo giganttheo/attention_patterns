@@ -28,7 +28,7 @@ class AttentionPattern():
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or (i <= j): #test inverted
+          if not causal or causal:# or (i <= j): #TODO: fix this (receivers <= senders is causal_mask)
             #with the causal mask, we ignore edges where the receiver is before the sender
             edges.add((i, j))
             clean_r.append(i)
@@ -43,7 +43,6 @@ class AttentionPattern():
     return clean_receivers_heads, clean_senders_heads
 
   def _padding_graphs(self, receivers_heads, senders_heads, attention_mask=None):
-    #TODO receivers or senders?
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
@@ -58,12 +57,11 @@ class AttentionPattern():
     m_h = []
     for receivers in receivers_heads:
       h.append(pad_to(receivers, max_graph_len))
-      m_h.append(get_mask(receivers, max_graph_len, attention_mask[0, receivers])) #test
+      m_h.append(get_mask(receivers, max_graph_len, attention_mask[0, receivers]))
     r = h
     h = []
     for senders in senders_heads:
       h.append(pad_to(senders, max_graph_len))
-      # m_h.append(get_mask(senders, max_graph_len, attention_mask[0, senders])) #test
     m = m_h
     s = h
     return jnp.array(r), jnp.array(s), jnp.array(m)
@@ -147,6 +145,8 @@ class AttentionPattern():
 
 class VanillaAttentionPattern(AttentionPattern):
   def __init__(self, seq_len_k, seq_len_qv, attention_mask=None, causal=False, n_heads=4, batch_size = 2):
+    if causal:
+      print("Warning: causality is not taken into account in the graph creation atm")
     super().__init__()
     self.batch_size = batch_size
     receivers = []
@@ -168,6 +168,7 @@ class VanillaAttentionPattern(AttentionPattern):
             layer_senders.append(j)
       else:
         # for i in range(1, 2 + seq_len_qv):
+        #TODO causal_mask = receivers <= senders
         for i in seq_qv:
           for j in seq_k:
             layer_receivers.append(i)
