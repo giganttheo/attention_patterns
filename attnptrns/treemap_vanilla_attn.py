@@ -14,7 +14,7 @@ class AttentionPattern():
     self.size = (0, 0)
     self.n_heads = 1
     self.graph_mask = {}
-    self.dtype = jnp.float16
+    self.dtype = jnp.float32
     self.batch_size = 0
 
   def _get_from_dict(self, dataDict, mapList):
@@ -46,11 +46,11 @@ class AttentionPattern():
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
-      padded_mat = jnp.zeros((padding), dtype=jnp.int16)
+      padded_mat = jnp.zeros((padding), dtype=jnp.int32)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding, attention_mask):
-      graph_mask = jnp.zeros((padding), dtype=jnp.int8)
+      graph_mask = jnp.zeros((padding), dtype=jnp.int32)
       graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat) * attention_mask)
       return graph_mask
     h = []
