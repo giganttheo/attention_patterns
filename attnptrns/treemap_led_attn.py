@@ -28,7 +28,8 @@ class AttentionPattern():
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or (i >= j): #with the causal mask, we ignore edges where the receiver is before the sender
+          if not causal or causal:# or (i <= j): #TODO: fix this (receivers <= senders is causal_mask)
+            #with the causal mask, we ignore edges where the receiver is before the sender
             edges.add((i, j))
             clean_r.append(i)
             clean_s.append(j)
@@ -41,27 +42,27 @@ class AttentionPattern():
       clean_senders_heads.append(jnp.array(clean_s))
     return clean_receivers_heads, clean_senders_heads
 
-  def _padding_graphs(self, receivers_heads, senders_heads):
+  def _padding_graphs(self, receivers_heads, senders_heads, attention_mask=None):
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
       padded_mat = jnp.zeros((padding), dtype=jnp.int16)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
-    def get_mask(mat, padding):
+    def get_mask(mat, padding, attention_mask):
       graph_mask = jnp.zeros((padding), dtype=jnp.int8)
-      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
+      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat) * attention_mask)
       return graph_mask
     h = []
     m_h = []
     for receivers in receivers_heads:
       h.append(pad_to(receivers, max_graph_len))
-      m_h.append(get_mask(receivers, max_graph_len))
+      m_h.append(get_mask(receivers, max_graph_len, attention_mask[0, receivers]))
     r = h
-    m = m_h
     h = []
     for senders in senders_heads:
       h.append(pad_to(senders, max_graph_len))
+    m = m_h
     s = h
     return jnp.array(r), jnp.array(s), jnp.array(m)
 
@@ -141,32 +142,33 @@ class AttentionPattern():
   def get_attention_graph(self):
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
 
-
-
 class LongformerAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, window_size, block_size=1, sentence_tokens=[0], n_heads=1, batch_size=1, causal=False):
+  def __init__(self, seq_len_k, seq_len_qv, block_size, attention_window=3, sentence_tokens=[0], attention_mask=None, dilation=None, n_heads=1, batch_size=1, causal=False):
     super().__init__()
-
-    # per layer attention window
-    window_size = 2 * window_size + 1 #effective window size
+    #"Warning: causality is not taken into account in the graph creation atm"
+    # attention window should be defined per layer
+    # attention_window * 2 + 1 #effective window size
 
     #global attn
     global_tokens = sentence_tokens
 
+    #local window attn
     receivers = []
     senders = []
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
-      for i in range(0, seq_len_qv):
-        for j in range(0, seq_len_k):
-          if i in global_tokens or j in global_tokens or abs( (i // block_size ) - (j // block_size )) <= window_size // 2:
-            layer_senders.append(i)
+      for i in range(seq_len_qv):
+        for j in range(seq_len_k):
+          if i in global_tokens or j in global_tokens or abs( (i // block_size ) - (j // block_size )) <= attention_window:
+            #TODO: dilation + blocks? #dilation only on 2 heads
             layer_receivers.append(j)
+            layer_senders.append(i)
       receivers.append(layer_receivers)
       senders.append(layer_senders)
+
     receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
-    receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
+    receivers, senders, graph_mask = self._padding_graphs(receivers, senders, attention_mask=attention_mask)
     receivers = jnp.array([receivers]*batch_size)
     senders = jnp.array([senders]*batch_size)
     graph_mask = jnp.array([graph_mask]*batch_size)
@@ -178,13 +180,25 @@ class LongformerAttentionPattern(AttentionPattern):
 
 n_heads = 12
 
+"""
+in the paper:
+
+We do not use dilated sliding windows for lower
+layers to maximize their capacity to learn and utilize the immediate local context. For the higher
+layers, we use a small amount of increasing dilation only on 2 heads. This gives the model the
+ability to directly attend to distant tokens without
+sacrificing local context.
+
+"""
+
 def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
   if not isinstance(tree, dict):
     return None
   if 'SelfAttention' in path:
     #self attention
     if 'encoder' in path:
-      return enc_self_attn
+      layer_ = int(path[2])
+      return enc_self_attn[layer_]
     else: #decoder attn
       return dec_self_attn
   elif 'EncDecAttention' in path:
@@ -192,11 +206,10 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
     return encdec_attn
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
-def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, window_size_enc, window_size_dec, window_size_encdec, block_size=1, sentence_tokens=[0], attn_type=LongformerAttentionPattern):
+def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, window_sizes_enc=[32, 64, 96, 128, 160, 192, 224, 256, 320, 368, 464, 512], window_size_dec=20000, window_size_encdec=20000, attn_type=LongformerAttentionPattern):
 
-    enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, window_size=window_size_enc, block_size=block_size, sentence_tokens=sentence_tokens, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
-    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, window_size=window_size_dec, sentence_tokens=list(range(max_target_length)), n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
-    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, window_size=window_size_encdec, sentence_tokens=list(range(max_source_length)), n_heads=n_heads, batch_size=batch_size).get_attention_graph()
-
+    enc_self_attn = [attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, block_size=1, attention_window=attn_window, sentence_tokens=[0, 1, 2], attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph() for attn_window in window_sizes_enc]
+    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_dec, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
+    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_encdec, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
