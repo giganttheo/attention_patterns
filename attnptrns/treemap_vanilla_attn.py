@@ -144,10 +144,11 @@ class AttentionPattern():
 
 
 class VanillaAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, attention_mask=None, causal=False, n_heads=4, batch_size = 2):
+  def __init__(self, seq_len_k, seq_len_qv, attention_mask=None, causal=False, n_heads=4, batch_size = 2, dtype=jnp.float32):
     if causal:
       print("Warning: causality is not taken into account in the graph creation atm")
     super().__init__()
+    self.dtype = dtype
     self.batch_size = batch_size
     receivers = []
     senders = []
@@ -203,12 +204,12 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
     return encdec_attn
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
-def create_dense_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, attn_type=VanillaAttentionPattern):
+def create_dense_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, dtype=jnp.float32, attn_type=VanillaAttentionPattern):
 
-    enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
-    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
+    enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True, dtype=dtype).get_attention_graph()
     #this is cross attn
-    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
+    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
 
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph

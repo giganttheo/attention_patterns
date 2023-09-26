@@ -207,7 +207,6 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
 def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, window_sizes_enc=[32, 64, 96, 128, 160, 192, 224, 256, 320, 368, 464, 512], window_size_dec=20000, window_size_encdec=20000, attn_type=LongformerAttentionPattern):
-
     enc_self_attn = [attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, block_size=1, attention_window=attn_window, sentence_tokens=[0, 1, 2], attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph() for attn_window in window_sizes_enc]
     dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_dec, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
     encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_encdec, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()

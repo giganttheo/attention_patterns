@@ -46,7 +46,7 @@ class AttentionPattern():
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
-      padded_mat = jnp.zeros((padding), dtype=jnp.int16)
+      padded_mat = jnp.zeros((padding), dtype=self.dtype)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding, attention_mask):
@@ -143,8 +143,9 @@ class AttentionPattern():
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
 
 class DilatedWindowSelfAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, window_size, attention_mask=None, dilation=None, n_heads=1, batch_size=1, causal=False):
+  def __init__(self, seq_len_k, seq_len_qv, window_size, attention_mask=None, dilation=None, n_heads=1, batch_size=1, causal=False, dtype=jnp.float32):
     super().__init__()
+    self.dtype = dtype
     #"Warning: causality is not taken into account in the graph creation atm"
     if dilation is None:
       dilation = range(1, 1 + n_heads)
