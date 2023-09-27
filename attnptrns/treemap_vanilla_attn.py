@@ -50,7 +50,7 @@ class AttentionPattern():
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding, attention_mask):
-      graph_mask = jnp.zeros((padding), dtype=bool)
+      graph_mask = jnp.zeros((padding), dtype=self.dtype)
       graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat) * attention_mask)
       return graph_mask
     h = []
