@@ -144,7 +144,7 @@ class AttentionPattern():
 
 
 class VanillaAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, attention_mask=None, causal=False, n_heads=4, batch_size = 2, dtype=jnp.float32):
+  def __init__(self, seq_len_q, seq_len_kv, attention_mask=None, causal=False, n_heads=4, batch_size = 2, dtype=jnp.float32):
     if causal:
       print("Warning: causality is not taken into account in the graph creation atm")
     super().__init__()
@@ -153,25 +153,25 @@ class VanillaAttentionPattern(AttentionPattern):
     receivers = []
     senders = []
     if attention_mask is None:
-      seq_qv = range(seq_len_qv)
-      seq_k = range(seq_len_k)
+      seq_kv = range(seq_len_kv)
+      seq_q = range(seq_len_q)
     else:
-      seq_qv = range(seq_len_qv)
-      seq_k = range(seq_len_k)
-      # seq_k = [j for j in range(seq_len_k) if attention_mask[0, j]] #this is more logical this way
+      seq_kv = range(seq_len_kv)
+      seq_q = range(seq_len_q)
+      # seq_q = [j for j in range(seq_len_q) if attention_mask[0, j]] #this is more logical this way
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
       if not causal:
-        for i in seq_qv:
-          for j in seq_k:
+        for i in seq_kv:
+          for j in seq_q:
             layer_receivers.append(i)
             layer_senders.append(j)
       else:
-        # for i in range(1, 2 + seq_len_qv):
+        # for i in range(1, 2 + seq_len_kv):
         #TODO causal_mask = receivers <= senders
-        for i in seq_qv:
-          for j in seq_k:
+        for i in seq_kv:
+          for j in seq_q:
             layer_receivers.append(i)
             layer_senders.append(j)
       receivers.append(layer_receivers)
@@ -185,7 +185,7 @@ class VanillaAttentionPattern(AttentionPattern):
     self.senders = senders
     self.graph_mask = graph_mask
     self.n_heads = n_heads
-    self.size = (seq_len_qv, seq_len_k)
+    self.size = (seq_len_kv, seq_len_q)
 
 
 n_heads = 12
@@ -206,10 +206,12 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
 
 def create_dense_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, dtype=jnp.float32, attn_type=VanillaAttentionPattern):
 
-    enc_self_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
-    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True, dtype=dtype).get_attention_graph()
+    enc_self_attn = attn_type(seq_len_q=max_source_length, seq_len_kv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True, dtype=dtype).get_attention_graph()
     #this is cross attn
-    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    #kv is the receivers and in cross attention the encoder
+    #q is the senders and in cross attention the decoder
+    encdec_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
 
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
