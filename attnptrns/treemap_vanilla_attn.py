@@ -47,15 +47,15 @@ class AttentionPattern():
       padded_mat = jnp.zeros((padding), dtype=jnp.int32)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
-    def get_mask(mat, padding, attention_mask):
+    def get_mask(mat, padding):
       graph_mask = jnp.zeros((padding), dtype=self.dtype)
-      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat) * attention_mask)
+      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
       return graph_mask
     h = []
     m_h = []
     for receivers in receivers_heads:
       h.append(pad_to(receivers, max_graph_len))
-      m_h.append(get_mask(receivers, max_graph_len, attention_mask[0, receivers]))
+      m_h.append(get_mask(receivers, max_graph_len))
     r = h
     h = []
     for senders in senders_heads:
