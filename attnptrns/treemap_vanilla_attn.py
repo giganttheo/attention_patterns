@@ -206,6 +206,9 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
 
 def create_dense_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, dtype=jnp.float32, attn_type=VanillaAttentionPattern):
 
+    #TODO: attention_mask and attention_mask for the decoder are not useful, it would be easier to use them directly in the attn fn
+    #because the decoder attn changes between calls in the autoregressive setting
+
     enc_self_attn = attn_type(seq_len_q=max_source_length, seq_len_kv=max_source_length, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
     dec_self_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_target_length, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True, dtype=dtype).get_attention_graph()
     #this is cross attn
