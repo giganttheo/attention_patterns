@@ -143,9 +143,11 @@ class AttentionPattern():
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
 
 class LongformerAttentionPattern(AttentionPattern):
-  def __init__(self, seq_len_k, seq_len_qv, block_size, attention_window=3, sentence_tokens=[0], attention_mask=None, dilation=None, n_heads=1, batch_size=1, causal=False):
+  def __init__(self, seq_len_q, seq_len_kv, block_size, attention_window=3, sentence_tokens=[0], dilation=None, n_heads=1, batch_size=1, dtype=jnp.float32):
     super().__init__()
-    #"Warning: causality is not taken into account in the graph creation atm"
+    self.dtype = dtype
+    self.batch_size = batch_size
+
     # attention window should be defined per layer
     # attention_window * 2 + 1 #effective window size
 
@@ -155,20 +157,22 @@ class LongformerAttentionPattern(AttentionPattern):
     #local window attn
     receivers = []
     senders = []
+    seq_kv = range(seq_len_kv)
+    seq_q = range(seq_len_q)
     for head in range(n_heads):
       layer_receivers = []
       layer_senders = []
-      for i in range(seq_len_qv):
-        for j in range(seq_len_k):
+      for i in seq_kv:
+        for j in seq_q:
           if i in global_tokens or j in global_tokens or abs( (i // block_size ) - (j // block_size )) <= attention_window:
             #TODO: dilation + blocks? #dilation only on 2 heads
-            layer_receivers.append(j)
-            layer_senders.append(i)
+            layer_receivers.append(i)
+            layer_senders.append(j)
       receivers.append(layer_receivers)
       senders.append(layer_senders)
 
-    receivers, senders = self._cleaning_duplicates(receivers, senders, causal=causal)
-    receivers, senders, graph_mask = self._padding_graphs(receivers, senders, attention_mask=attention_mask)
+    receivers, senders = self._cleaning_duplicates(receivers, senders)
+    receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
     receivers = jnp.array([receivers]*batch_size)
     senders = jnp.array([senders]*batch_size)
     graph_mask = jnp.array([graph_mask]*batch_size)
@@ -176,7 +180,7 @@ class LongformerAttentionPattern(AttentionPattern):
     self.senders = senders
     self.graph_mask = graph_mask
     self.n_heads = n_heads
-    self.size = (seq_len_qv, seq_len_k)
+    self.size = (seq_len_kv, seq_len_q)
 
 n_heads = 12
 
@@ -206,9 +210,9 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
     return encdec_attn
   return {k: graph_from_path(t, enc_self_attn=enc_self_attn, dec_self_attn=dec_self_attn, encdec_attn=encdec_attn, path=path+[k]) for (k, t) in tree.items()}
 
-def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, attention_mask, decoder_attention_mask, window_sizes_enc=[32, 64, 96, 128, 160, 192, 224, 256, 320, 368, 464, 512], window_size_dec=20000, window_size_encdec=20000, attn_type=LongformerAttentionPattern):
-    enc_self_attn = [attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, block_size=1, attention_window=attn_window, sentence_tokens=[0], attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph() for attn_window in window_sizes_enc]
-    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_dec, attention_mask=decoder_attention_mask, n_heads=n_heads, batch_size=batch_size, causal=True).get_attention_graph()
-    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_encdec, attention_mask=attention_mask, n_heads=n_heads, batch_size=batch_size).get_attention_graph()
+def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, window_sizes_enc=[32, 64, 96, 128, 160, 192, 224, 256, 320, 368, 464, 512], window_size_dec=20000, window_size_encdec=20000, dtype=jnp.float32, attn_type=LongformerAttentionPattern):
+    enc_self_attn = [attn_type(seq_len_k=max_source_length, seq_len_qv=max_source_length, block_size=1, attention_window=attn_window, sentence_tokens=[0], n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph() for attn_window in window_sizes_enc]
+    dec_self_attn = attn_type(seq_len_k=max_target_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_dec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    encdec_attn = attn_type(seq_len_k=max_source_length, seq_len_qv=max_target_length, block_size=1, attention_window=window_size_encdec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
