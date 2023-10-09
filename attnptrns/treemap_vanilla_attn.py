@@ -113,7 +113,7 @@ class AttentionPattern():
 
   def show_attention_pattern(self, layer_path=None):
     if layer_path is None:
-      layer_path = [path.key for path in jax.tree_util.tree_leaves_with_path(self.receivers)[0][0]]
+      layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
     adj_mat = self.get_adj_mat(layer_path)[0]
     plt.imshow(adj_mat,vmin=0, vmax=1, cmap=plt.cm.winter)
     ax = plt.gca()
