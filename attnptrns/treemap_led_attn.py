@@ -72,23 +72,23 @@ class AttentionPattern():
     f = lambda r,s: jnp.array(list(map(lambda i,j : i >= j, r, s)))
     return jax.tree_util.tree_map(lambda r,s: f (r,s), self.receivers, self.senders)
 
-  def get_adj_mat(self, layer_path):
-    receivers = self._get_from_dict(self.receivers, layer_path)
-    senders = self._get_from_dict(self.senders, layer_path)
-    graph_mask = self._get_from_dict(self.graph_mask, layer_path)
+  def get_adj_mat(self):
+    # receivers = self._get_from_dict(self.receivers, layer_path)
+    # senders = self._get_from_dict(self.senders, layer_path)
+    # graph_mask = self._get_from_dict(self.graph_mask, layer_path)   
     adj_mat = jnp.zeros((self.batch_size,) + self.size)
     for batch in range(self.batch_size):
       for head in range(self.n_heads):
-        for i, (r, s) in enumerate(zip(receivers[batch, head], senders[batch, head])):
-          if graph_mask[batch, head, i]:
+        for i, (r, s) in enumerate(zip(self.receivers[batch, head], self.senders[batch, head])):
+          if self.graph_mask[batch, head, i]:
             adj_mat = adj_mat.at[batch, r, s].set(adj_mat[batch, r, s] + (1 / self.n_heads))
     return adj_mat
 
   def get_rec_field(self, log=False):
     #receptive field is the normalized n_layers hops matrix
     #ie A^n_layers with A the adjacency matrix
-    receivers_values, _ = jax.tree_util.tree_flatten(self.receivers)
-    senders_values, _ = jax.tree_util.tree_flatten(self.senders)
+    # receivers_values, _ = jax.tree_util.tree_flatten(self.receivers)
+    # senders_values, _ = jax.tree_util.tree_flatten(self.senders)
     fn = lambda path, _: self.get_adj_mat([p.key for p in path])
     adj_mats = jax.tree_util.tree_map_with_path(fn, self.receivers)
     rec_field = jax.tree_util.tree_reduce(lambda value, element: value @ element,
@@ -111,10 +111,10 @@ class AttentionPattern():
     for (i, j), z in np.ndenumerate(rec_field):
         ax.text(j, i, math.floor(z), ha='center', va='center')
 
-  def show_attention_pattern(self, layer_path=None):
-    if layer_path is None:
-      layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
-    adj_mat = self.get_adj_mat(layer_path)[0]
+  def show_attention_pattern(self):
+    # if layer_path is None:
+    #   layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
+    adj_mat = self.get_adj_mat
     plt.imshow(adj_mat,vmin=0, vmax=1, cmap=plt.cm.winter)
     ax = plt.gca()
 
