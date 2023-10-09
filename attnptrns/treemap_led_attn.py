@@ -14,25 +14,23 @@ class AttentionPattern():
     self.size = (0, 0)
     self.n_heads = 1
     self.graph_mask = {}
-    self.dtype = jnp.float16
+    self.dtype = jnp.float32
     self.batch_size = 0
 
   def _get_from_dict(self, dataDict, mapList):
     """Iterate nested dictionary"""
     return reduce(dict.get, mapList, dataDict)
 
-  def _cleaning_duplicates(self, receivers_heads, senders_heads, causal=False):
+  def _cleaning_duplicates(self, receivers_heads, senders_heads):
     def clean_adj_list_duplicates(r, s):
       edges = set()
       clean_r = []
       clean_s = []
       for i, j in zip(r, s):
         if (i, j) not in edges:
-          if not causal or causal:# or (i <= j): #TODO: fix this (receivers <= senders is causal_mask)
-            #with the causal mask, we ignore edges where the receiver is before the sender
-            edges.add((i, j))
-            clean_r.append(i)
-            clean_s.append(j)
+          edges.add((i, j))
+          clean_r.append(i)
+          clean_s.append(j)
       return clean_r, clean_s
     clean_receivers_heads = []
     clean_senders_heads = []
@@ -42,15 +40,15 @@ class AttentionPattern():
       clean_senders_heads.append(jnp.array(clean_s))
     return clean_receivers_heads, clean_senders_heads
 
-  def _padding_graphs(self, receivers_heads, senders_heads):
+  def _padding_graphs(self, receivers_heads, senders_heads, attention_mask=None):
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
-      padded_mat = jnp.zeros((padding), dtype=jnp.int16)
+      padded_mat = jnp.zeros((padding), dtype=jnp.int32)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding):
-      graph_mask = jnp.zeros((padding), dtype=jnp.int8)
+      graph_mask = jnp.zeros((padding), dtype=self.dtype)
       graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
       return graph_mask
     h = []
@@ -115,7 +113,7 @@ class AttentionPattern():
 
   def show_attention_pattern(self, layer_path=None):
     if layer_path is None:
-      layer_path = [path.key for path in jax.tree_util.tree_leaves_with_path(self.receivers)[0][0]]
+      layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
     adj_mat = self.get_adj_mat(layer_path)[0]
     plt.imshow(adj_mat,vmin=0, vmax=1, cmap=plt.cm.winter)
     ax = plt.gca()
@@ -141,6 +139,7 @@ class AttentionPattern():
 
   def get_attention_graph(self):
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
+
 
 class LongformerAttentionPattern(AttentionPattern):
   def __init__(self, seq_len_q, seq_len_kv, block_size, attention_window=3, sentence_tokens=[0], dilation=None, n_heads=1, batch_size=1, dtype=jnp.float32):
