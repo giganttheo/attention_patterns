@@ -44,7 +44,7 @@ class AttentionPattern():
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
-      padded_mat = jnp.zeros((padding), dtype=jnp.int32)
+      padded_mat = jnp.zeros((padding), dtype=jnp.uint16)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding):
@@ -172,9 +172,9 @@ class LongformerAttentionPattern(AttentionPattern):
 
     receivers, senders = self._cleaning_duplicates(receivers, senders)
     receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
-    receivers = jnp.array([receivers]*batch_size)
-    senders = jnp.array([senders]*batch_size)
-    graph_mask = jnp.array([graph_mask]*batch_size)
+    receivers = jnp.array([receivers]*batch_size, dtype=jnp.uint16)
+    senders = jnp.array([senders]*batch_size, dtype=jnp.uint16)
+    graph_mask = jnp.array([graph_mask]*batch_size, dtype=bool)
     self.receivers = receivers
     self.senders = senders
     self.graph_mask = graph_mask
