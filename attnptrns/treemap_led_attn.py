@@ -48,8 +48,8 @@ class AttentionPattern():
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding):
-      graph_mask = jnp.zeros((padding), dtype=self.dtype)
-      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
+      graph_mask = jnp.zeros((padding), dtype="i4")
+      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat, dtype="i4"))
       return graph_mask
     h = []
     m_h = []
@@ -62,7 +62,7 @@ class AttentionPattern():
       h.append(pad_to(senders, max_graph_len))
     m = m_h
     s = h
-    return jnp.array(r), jnp.array(s), jnp.array(m)
+    return jnp.array(r, dtype=jnp.uint16), jnp.array(s, dtype=jnp.uint16), jnp.array(m, dtype="i4")
 
   def mask(self, mask):
     self.receivers = jax.tree_util.tree_map(lambda r, mask: r*mask, self.receivers, mask)
@@ -174,7 +174,7 @@ class LongformerAttentionPattern(AttentionPattern):
     receivers, senders, graph_mask = self._padding_graphs(receivers, senders)
     receivers = jnp.array([receivers]*batch_size, dtype=jnp.uint16)
     senders = jnp.array([senders]*batch_size, dtype=jnp.uint16)
-    graph_mask = jnp.array([graph_mask]*batch_size, dtype=bool)
+    graph_mask = jnp.array([graph_mask]*batch_size, dtype="i4")
     self.receivers = receivers
     self.senders = senders
     self.graph_mask = graph_mask
