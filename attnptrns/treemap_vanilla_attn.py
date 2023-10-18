@@ -44,12 +44,12 @@ class AttentionPattern():
     max_graph_len = max([receivers.shape[0] for receivers in receivers_heads])
     r, s, m = [], [], []
     def pad_to(mat, padding):
-      padded_mat = jnp.zeros((padding), dtype=jnp.int32)
+      padded_mat = jnp.zeros((padding), dtype=jnp.uint16)
       padded_mat = padded_mat.at[:mat.shape[0]].set(mat)
       return padded_mat
     def get_mask(mat, padding):
-      graph_mask = jnp.zeros((padding), dtype=self.dtype)
-      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat))
+      graph_mask = jnp.zeros((padding), dtype="i4")
+      graph_mask = graph_mask.at[:mat.shape[0]].set(jnp.ones_like(mat, dtype="i4"))
       return graph_mask
     h = []
     m_h = []
@@ -62,7 +62,7 @@ class AttentionPattern():
       h.append(pad_to(senders, max_graph_len))
     m = m_h
     s = h
-    return jnp.array(r), jnp.array(s), jnp.array(m)
+    return jnp.array(r, dtype=jnp.uint16), jnp.array(s, dtype=jnp.uint16), jnp.array(m, dtype="i4")
 
   def mask(self, mask):
     self.receivers = jax.tree_util.tree_map(lambda r, mask: r*mask, self.receivers, mask)
@@ -72,23 +72,23 @@ class AttentionPattern():
     f = lambda r,s: jnp.array(list(map(lambda i,j : i >= j, r, s)))
     return jax.tree_util.tree_map(lambda r,s: f (r,s), self.receivers, self.senders)
 
-  def get_adj_mat(self, layer_path):
-    receivers = self._get_from_dict(self.receivers, layer_path)
-    senders = self._get_from_dict(self.senders, layer_path)
-    graph_mask = self._get_from_dict(self.graph_mask, layer_path)
+  def get_adj_mat(self):
+    # receivers = self._get_from_dict(self.receivers, layer_path)
+    # senders = self._get_from_dict(self.senders, layer_path)
+    # graph_mask = self._get_from_dict(self.graph_mask, layer_path)   
     adj_mat = jnp.zeros((self.batch_size,) + self.size)
     for batch in range(self.batch_size):
       for head in range(self.n_heads):
-        for i, (r, s) in enumerate(zip(receivers[batch, head], senders[batch, head])):
-          if graph_mask[batch, head, i]:
+        for i, (r, s) in enumerate(zip(self.receivers[batch, head], self.senders[batch, head])):
+          if self.graph_mask[batch, head, i]:
             adj_mat = adj_mat.at[batch, r, s].set(adj_mat[batch, r, s] + (1 / self.n_heads))
     return adj_mat
 
   def get_rec_field(self, log=False):
     #receptive field is the normalized n_layers hops matrix
     #ie A^n_layers with A the adjacency matrix
-    receivers_values, _ = jax.tree_util.tree_flatten(self.receivers)
-    senders_values, _ = jax.tree_util.tree_flatten(self.senders)
+    # receivers_values, _ = jax.tree_util.tree_flatten(self.receivers)
+    # senders_values, _ = jax.tree_util.tree_flatten(self.senders)
     fn = lambda path, _: self.get_adj_mat([p.key for p in path])
     adj_mats = jax.tree_util.tree_map_with_path(fn, self.receivers)
     rec_field = jax.tree_util.tree_reduce(lambda value, element: value @ element,
@@ -111,10 +111,10 @@ class AttentionPattern():
     for (i, j), z in np.ndenumerate(rec_field):
         ax.text(j, i, math.floor(z), ha='center', va='center')
 
-  def show_attention_pattern(self, layer_path=None):
-    if layer_path is None:
-      layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
-    adj_mat = self.get_adj_mat(layer_path)[0]
+  def show_attention_pattern(self):
+    # if layer_path is None:
+    #   layer_path = [path.key for (_, path) in jax.tree_util.tree_flatten_with_path(self.receivers)[0][0]]
+    adj_mat = self.get_adj_mat()
     plt.imshow(adj_mat,vmin=0, vmax=1, cmap=plt.cm.winter)
     ax = plt.gca()
 
@@ -139,7 +139,6 @@ class AttentionPattern():
 
   def get_attention_graph(self):
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
-
 
 class VanillaAttentionPattern(AttentionPattern):
   def __init__(self, seq_len_q, seq_len_kv, n_heads=4, batch_size = 2, dtype=jnp.float32):
@@ -189,11 +188,11 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
 def create_dense_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, dtype=jnp.float32, attn_type=VanillaAttentionPattern):
 
     enc_self_attn = attn_type(seq_len_q=max_source_length, seq_len_kv=max_source_length, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
-    dec_self_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_target_length, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_q=1, seq_len_kv=max_target_length, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
     #this is cross attn
     #kv is the receivers and in cross attention the encoder
     #q is the senders and in cross attention the decoder
-    encdec_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_source_length, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    encdec_attn = attn_type(seq_len_q=1, seq_len_kv=max_source_length, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
 
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
