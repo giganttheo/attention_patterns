@@ -6,7 +6,6 @@ from functools import reduce
 import jax
 
 class AttentionPattern():
-  #this implementation is batch-friendly
   def __init__(self):
     self.receivers = {}
     self.senders = {}

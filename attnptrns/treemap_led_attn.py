@@ -6,7 +6,6 @@ from functools import reduce
 import jax
 
 class AttentionPattern():
-  #this implementation is batch-friendly
   def __init__(self):
     self.receivers = {}
     self.senders = {}
@@ -140,11 +139,9 @@ class AttentionPattern():
   def get_attention_graph(self):
     return {"receivers": self.receivers, "senders": self.senders, "graph_mask": self.graph_mask}
 
-
 class LongformerAttentionPattern(AttentionPattern):
   def __init__(self, seq_len_q, seq_len_kv, block_size, attention_window=3, sentence_tokens=[0], dilation=None, n_heads=1, batch_size=1, dtype=jnp.float32):
     super().__init__()
-    self.dtype = dtype
     self.batch_size = batch_size
 
     # attention window should be defined per layer
@@ -211,7 +208,7 @@ def graph_from_path(tree, enc_self_attn, dec_self_attn, encdec_attn, path=[]):
 
 def create_led_attn_patterns(model, max_source_length, max_target_length, n_heads, batch_size, window_sizes_enc=[32, 64, 96, 128, 160, 192, 224, 256, 320, 368, 464, 512], window_size_dec=20000, window_size_encdec=20000, dtype=jnp.float32, attn_type=LongformerAttentionPattern):
     enc_self_attn = [attn_type(seq_len_q=max_source_length, seq_len_kv=max_source_length, block_size=1, attention_window=attn_window, sentence_tokens=[0], n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph() for attn_window in window_sizes_enc]
-    dec_self_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_target_length, block_size=1, attention_window=window_size_dec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
-    encdec_attn = attn_type(seq_len_q=max_target_length, seq_len_kv=max_source_length, block_size=1, attention_window=window_size_encdec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    dec_self_attn = attn_type(seq_len_q=1, seq_len_kv=max_target_length, block_size=1, attention_window=window_size_dec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
+    encdec_attn = attn_type(seq_len_q=1, seq_len_kv=max_source_length, block_size=1, attention_window=window_size_encdec, n_heads=n_heads, batch_size=batch_size, dtype=dtype).get_attention_graph()
     graph = graph_from_path(model.params, enc_self_attn, dec_self_attn, encdec_attn)
     return graph
